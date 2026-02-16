@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  openclaw-gateway:
+    build: .
+    container_name: openclaw-gateway
+    hostname: openclaw-gateway
+    restart: unless-stopped
+    
+    # Tailscale 需要
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    
+    # 端口映射
+    ports:
+      - "18789:18789"
+      - "18790:18790"
+    
+    # 环境变量
+    environment:
+      - TAILSCALE_AUTH_KEY=${TAILSCALE_AUTH_KEY:-}
+    
+    # 数据持久化
+    volumes:
+      - ./data/tailscale:/var/lib/tailscale
+      - ./data/secure:/root/.secure
+      - ./data/logs:/var/log/openclaw-audit.log
+      - ./data/openclaw:/root/.openclaw
+      - ./data/extensions:/root/.openclaw/extensions
+      - ./data/skills:/root/.openclaw/skills
+      - ./data/models:/root/.openclaw/models
+      - ./data/wx:/opt/wx-filehelper-api
+      - ./data/workspace:/root/.openclaw/workspace
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "node", "/home/node/.openclaw/scripts/health-check.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+  
+  wx-filehelper-api:
+    image: python:3.12-slim
+    container_name: wx-filehelper-api
+    restart: unless-stopped
+    
+    ports:
+      - "8000:8000"
+    
+    volumes:
+      - ./data/wx:/app
+      - ./data/wx-downloads:/app/downloads
+    
+    working_dir: /app
+    
+    command: >
+      sh -c "
+        pip install fastapi uvicorn requests python-multipart &&
+        pip install playwright &&
+        playwright install chromium &&
+        python main.py
+      "
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

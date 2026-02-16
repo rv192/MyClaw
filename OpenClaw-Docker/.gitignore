@@ -1,0 +1,30 @@
+# 环境变量
+.env
+
+# 数据目录
+data/
+
+# 日志
+*.log
+
+# Node
+node_modules/
+npm-debug.log*
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# 微信插件数据
+wx-downloads/
+messages.db
+downloads/
