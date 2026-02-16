@@ -27,7 +27,7 @@ services:
     volumes:
       - ./data/tailscale:/var/lib/tailscale
       - ./data/secure:/root/.secure
-      - ./data/logs:/var/log/openclaw-audit.log
+      - ./data/logs:/var/log
       - ./data/openclaw:/root/.openclaw
       - ./data/workspace:/root/workspace
     
