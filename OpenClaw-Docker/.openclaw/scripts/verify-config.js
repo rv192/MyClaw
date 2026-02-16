@@ -41,16 +41,16 @@ function verifyAll() {
   if (allConfigured) {
     console.log('🎉 所有平台配置完成！');
     console.log('删除 INIT_TODO.md...');
-    
+
     try {
-      fs.unlinkSync('/home/node/.openclaw/INIT_TODO.md');
+      fs.unlinkSync('/root/.openclaw/INIT_TODO.md');
       console.log('✅ 初始化完成，建议重启容器');
     } catch (error) {
       console.log('⚠️  无法删除 INIT_TODO.md');
     }
   } else {
     console.log('⚠️  还有平台未完成配置');
-    console.log('📖 查看待办事项: cat /home/node/.openclaw/INIT_TODO.md');
+    console.log('📖 查看待办事项: cat /root/.openclaw/INIT_TODO.md');
   }
 
   return allConfigured;

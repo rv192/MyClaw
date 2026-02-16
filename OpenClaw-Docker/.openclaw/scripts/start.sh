@@ -29,11 +29,11 @@ else
 fi
 
 # 检查初始化任务清单
-if [ -f "/home/node/.openclaw/INIT_TODO.md" ]; then
+if [ -f "/root/.openclaw/INIT_TODO.md" ]; then
     echo ""
     echo "📋 检测到初始化任务清单"
-    echo "📖 查看任务: docker exec -it openclaw-gateway cat /home/node/.openclaw/INIT_TODO.md"
-    echo "🔧 配置平台: docker exec -it openclaw-gateway node /home/node/.openclaw/scripts/config-platform.js <platform>"
+    echo "📖 查看任务: docker exec -it openclaw-gateway cat /root/.openclaw/INIT_TODO.md"
+    echo "🔧 配置平台: docker exec -it openclaw-gateway node /root/.openclaw/scripts/config-platform.js <platform>"
     echo ""
 fi
 

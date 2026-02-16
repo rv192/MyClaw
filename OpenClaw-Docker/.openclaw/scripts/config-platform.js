@@ -202,7 +202,7 @@ async function main() {
     console.log('\n下一步操作:');
     console.log('  1. 重启容器使配置生效: docker restart openclaw-gateway');
     console.log('  2. 查看日志: docker logs -f openclaw-gateway');
-    console.log('  3. 继续配置其他平台: node /home/node/.openclaw/scripts/config-platform.js <platform>');
+    console.log('  3. 继续配置其他平台: node /root/.openclaw/scripts/config-platform.js <platform>');
   } else {
     console.log(`\n❌ ${PLATFORM_TEMPLATES[platform].name} 配置失败`);
     process.exit(1);

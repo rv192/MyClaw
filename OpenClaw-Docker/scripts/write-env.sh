@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# 检查权限
+# 此脚本必须由 root 调用，但以 secure 用户身份执行敏感操作
 if [ "$(id -u)" -ne 0 ]; then
     echo "Error: This script must be run as root" >&2
     exit 1
@@ -15,19 +15,22 @@ if [ -z "$PLATFORM" ]; then
     exit 1
 fi
 
+# 确保 .env 文件存在（由 secure 用户创建）
+sudo -u secure touch "$ENV_FILE" 2>/dev/null || true
+
 # 从标准输入读取环境变量
 while IFS='=' read -r key value; do
     # 跳过空行和注释
     [[ -z "$key" || "$key" =~ ^#.* ]] && continue
-    
-    # 检查是否已存在
-    if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
-        # 更新现有值
-        sed -i "s/^${key}=.*/${key}=${value}/" "$ENV_FILE"
+
+    # 检查是否已存在（以 secure 用户身份）
+    if sudo -u secure grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+        # 更新现有值（以 secure 用户身份）
+        sudo -u secure sed -i "s/^${key}=.*/${key}=${value}/" "$ENV_FILE"
         echo "✅ 更新 $key"
     else
-        # 添加新值
-        echo "${key}=${value}" >> "$ENV_FILE"
+        # 添加新值（以 secure 用户身份）
+        sudo -u secure sh -c "echo '${key}=${value}' >> '$ENV_FILE'"
         echo "✅ 添加 $key"
     fi
 done

@@ -54,7 +54,7 @@
 | `./data/extensions` | `/root/.openclaw/extensions` | 插件扩展目录 |
 | `./data/skills` | `/root/.openclaw/skills` | 自定义技能目录 |
 | `./data/models` | `/root/.openclaw/models` | QMD 模型文件 |
-| `./data/workspace` | `/root/.openclaw/workspace` | 工作目录（AGENTS.md、SOULS.md 等） |
+| `./data/workspace` | `/root/workspace` | 工作目录（AGENTS.md、SOULS.md 等） |
 | `./data/wx` | `/opt/wx-filehelper-api` | 微信插件代码 |
 | `./data/wx-downloads` | `/app/downloads` | 微信文件下载 |
 

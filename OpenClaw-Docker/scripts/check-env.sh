@@ -21,12 +21,12 @@ if [ -z "$PLATFORM" ]; then
     exit 0
 fi
 
-# 检查环境变量是否存在
+# 检查环境变量是否存在（以 secure 用户身份）
 VARS="${PLATFORM_VARS[$PLATFORM]}"
 MISSING=()
 
 for VAR in $VARS; do
-    if ! grep -q "^${VAR}=" "$ENV_FILE" 2>/dev/null; then
+    if ! sudo -u secure grep -q "^${VAR}=" "$ENV_FILE" 2>/dev/null; then
         MISSING+=("$VAR")
     fi
 done

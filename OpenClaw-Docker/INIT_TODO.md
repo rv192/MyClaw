@@ -4,6 +4,62 @@
 
 ---
 
+## 🔐 安全架构设计
+
+### 权限隔离原则
+
+OpenClaw 采用纵深防御策略保护敏感配置，防止 AI 系统意外泄露密钥：
+
+#### 目录权限划分
+
+| 路径 | 权限 | 所有者 | 用途 | 访问方式 |
+|------|------|--------|------|----------|
+| `/root/.secure/` | 700 | `secure` | 存储敏感配置（.env） | 仅通过 `/scripts/` 脚本 |
+| `/scripts/` | 750 | root:secure | 授权脚本集合 | root 调用，以 secure 用户执行 |
+| `/root/.openclaw/` | 755 | root | OpenClaw 全局配置 | OpenClaw 主进程读取 |
+| `/root/workspace/` | 755 | root | 用户工作目录（AGENTS.md、SOULS.md 等） | 用户挂载和编辑 |
+
+#### 访问规约
+
+1. **直接访问限制**
+   - `/root/.secure/` 目录由 `secure` 用户拥有，权限 700
+   - 即使容器以 root 运行，按约定也不应直接访问该目录
+   - 所有敏感操作必须通过 `/scripts/` 中的授权脚本完成
+
+2. **脚本访问通道**
+   - `/scripts/write-env.sh` - 以 secure 用户身份写入环境变量
+   - `/scripts/check-env.sh` - 以 secure 用户身份检查环境变量
+   - `/scripts/configure-tailscale.sh` - 配置 Tailscale VPN
+
+3. **用户脚本规范**
+   - **位置**: 用户脚本应放在 `/root/workspace/scripts/` 目录（通过 volume 挂载）
+   - **用途**: 用户自定义操作脚本，可由用户在宿主机编辑或 OpenClaw 运行时生成
+   - **访问配置**: 用户脚本必须通过调用 `/scripts/` 中的官方脚本来访问敏感配置
+   - **禁止行为**: 用户脚本不得直接读取 `/root/.secure/.env` 或其他敏感文件
+
+   **示例**:
+   ```bash
+   # /root/workspace/scripts/my-task.sh
+   #!/bin/bash
+   # ✅ 正确：通过官方脚本获取配置
+   API_KEY=$(sudo -u secure /scripts/check-env.sh ai | grep API_KEY)
+
+   # ❌ 错误：直接访问敏感配置
+   # API_KEY=$(cat /root/.secure/.env | grep API_KEY)
+   ```
+
+4. **安全目标**
+   - 创建技术障碍，防止 AI 失智时被骗直接访问密钥
+   - 集中审计所有敏感操作（记录到 `/var/log/openclaw-audit.log`）
+   - 便于追踪和审查敏感配置变更
+
+5. **注意事项**
+   - root 用户理论上可以绕过权限检查（Linux 特性）
+   - 本设计提供的是"设计约定"和"技术障碍"，而非绝对隔离
+   - SELinux/AppArmor 可提供更强的强制访问控制
+
+---
+
 ## 📋 第一阶段：基础网络配置
 
 ### 1.1 Tailscale VPN 配置 ✅ 守护进程已启动

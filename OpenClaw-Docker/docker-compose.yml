@@ -29,15 +29,11 @@ services:
       - ./data/secure:/root/.secure
       - ./data/logs:/var/log/openclaw-audit.log
       - ./data/openclaw:/root/.openclaw
-      - ./data/extensions:/root/.openclaw/extensions
-      - ./data/skills:/root/.openclaw/skills
-      - ./data/models:/root/.openclaw/models
-      - ./data/wx:/opt/wx-filehelper-api
-      - ./data/workspace:/root/.openclaw/workspace
+      - ./data/workspace:/root/workspace
     
     # 健康检查
     healthcheck:
-      test: ["CMD", "node", "/home/node/.openclaw/scripts/health-check.js"]
+      test: ["CMD", "node", "/root/.openclaw/scripts/health-check.js"]
       interval: 30s
       timeout: 10s
       retries: 3
