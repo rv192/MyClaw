@@ -1,0 +1,75 @@
+# ============================================
+# OpenClaw Browser Service - Minimal Version
+# Docker Compose Configuration
+# ============================================
+
+services:
+  browser-minimal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: openclaw/browser-minimal:latest
+    container_name: browser-minimal
+
+    restart: unless-stopped
+
+    # 环境变量
+    env_file:
+      - .env
+
+    # 端口映射
+    ports:
+      - "${VNC_PORT:-5900}:${VNC_PORT:-5900}"
+      - "${RUSTDESK_PORT:-5900}:${RUSTDESK_PORT:-5900}"
+
+    # 数据卷
+    volumes:
+      # Chromium 缓存持久化
+      - browser-cache:/root/.cache/chromium
+
+      # 挂载更新后的启动脚本
+      - ./entrypoint.sh:/entrypoint.sh:ro
+
+      # 可选：挂载密码文件 (生产环境推荐)
+      # - ./vnc-passwd:/root/.vnc/passwd:ro
+
+      # 可选：挂载脚本目录
+      # - ./scripts:/root/scripts:ro
+
+    # Chrome/Chromium 必需
+    shm_size: '2gb'
+
+    # 安全配置
+    security_opt:
+      - seccomp:unconfined  # 某些 Chrome 功能需要
+
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+
+    # 网络
+    networks:
+      - openclaw-net
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-s", "http://localhost:9222/json/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+# 数据卷
+volumes:
+  browser-cache:
+    driver: local
+
+# 网络
+networks:
+  openclaw-net:
+    driver: bridge
