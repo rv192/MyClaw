@@ -34,6 +34,7 @@ services:
       - ./data/secure:/root/.secure
       - ./data/logs:/var/log
       - ./data/openclaw:/root/.openclaw
+      - ./data/qmd-cache:/root/.cache/qmd
     
     # 健康检查
     healthcheck:

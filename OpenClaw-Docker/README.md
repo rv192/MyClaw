@@ -16,44 +16,44 @@
 
 ```bash
 cd /root/services/OpenClaw-Docker
-docker-compose build
+docker compose build
 ```
 
 ### 2. 启动容器
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 3. 查看初始化任务
 
 ```bash
-docker exec -it openclaw-gateway cat /home/node/.openclaw/INIT_TODO.md
+docker exec -it openclaw-gateway cat /root/.openclaw/INIT_TODO.md
 ```
 
 ### 4. 配置平台
 
 ```bash
 # 配置飞书
-docker exec -it openclaw-gateway node /home/node/.openclaw/scripts/config-platform.js feishu
+docker exec -it openclaw-gateway node /root/.openclaw/scripts/config-platform.js feishu
 
 # 配置 AI 模型
-docker exec -it openclaw-gateway node /home/node/.openclaw/scripts/config-platform.js ai
+docker exec -it openclaw-gateway node /root/.openclaw/scripts/config-platform.js ai
 
 # 配置 Tailscale（使用 Auth Key）
-docker exec -it openclaw-gateway sudo /scripts/configure-tailscale.sh --auth-key YOUR_KEY
+docker exec -it openclaw-gateway sudo tailscale up --authkey YOUR_KEY
 ```
 
 ### 5. 验证配置
 
 ```bash
-docker exec -it openclaw-gateway node /home/node/.openclaw/scripts/verify-config.js
+docker exec -it openclaw-gateway node /root/.openclaw/scripts/verify-config.js
 ```
 
 ### 6. 重启使配置生效
 
 ```bash
-docker-compose restart
+docker compose restart
 ```
 
 ## 支持的平台
@@ -110,7 +110,7 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 
 ```bash
 # 查看容器日志
-docker-compose logs -f
+docker compose logs -f
 
 # 查看审计日志
 docker exec -it openclaw-gateway sudo cat /var/log/openclaw-audit.log
@@ -133,7 +133,7 @@ docker exec -it openclaw-gateway sudo tailscale up
 检查日志中的错误信息：
 
 ```bash
-docker-compose logs | grep -i error
+docker compose logs | grep -i error
 ```
 
 ### 权限问题
@@ -141,7 +141,7 @@ docker-compose logs | grep -i error
 确保脚本有执行权限：
 
 ```bash
-docker exec -it openclaw-gateway ls -la /scripts/
+docker exec -it openclaw-gateway ls -la /usr/local/bin/openclaw-*.sh
 ```
 
 ## 项目结构
@@ -153,16 +153,13 @@ OpenClaw-Docker/
 ├── .env.example           # 环境变量模板
 ├── .gitignore             # Git 忽略规则
 ├── INIT_TODO.md           # 初始化任务清单
-├── scripts/               # 授权脚本（root 执行）
-│   ├── write-env.sh       # 安全写入环境变量
-│   ├── check-env.sh       # 检查环境变量
-│   └── configure-tailscale.sh  # Tailscale 配置
-└── .openclaw/
-    └── scripts/           # 配置脚本（node 执行）
-        ├── start.sh       # 容器启动脚本
-        ├── config-platform.js  # 平台配置工具
-        ├── verify-config.js    # 配置验证
-        └── health-check.js     # 健康检查
+├── scripts/               # 镜像构建时复制的本地脚本
+│   ├── start.sh           # 启动脚本源文件（复制为 /usr/local/bin/openclaw-start.sh）
+│   └── secrets.sh         # 敏感信息脚本源文件（复制为 /usr/local/bin/openclaw-secrets.sh）
+└── （容器运行时）/root/.openclaw/scripts/  # 由 npm 包初始化，非仓库目录
+    ├── config-platform.js     # 平台配置工具
+    ├── verify-config.js       # 配置验证
+    └── health-check.js        # 健康检查
 ```
 
 ## 许可证

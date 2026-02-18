@@ -3,6 +3,9 @@
 
 set -e
 
+export BUN_INSTALL="/root/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+
 echo "🚀 启动 OpenClaw Gateway..."
 
 # ========================================
