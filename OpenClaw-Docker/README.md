@@ -98,6 +98,30 @@ data/
 └── secure/        # 敏感配置（.env）
 ```
 
+## 容器内关键路径速查
+
+为便于容器内 AI/运维脚本自检，镜像内保留以下关键文件：
+
+```bash
+# 构建/编排上下文（只读参考）
+/opt/openclaw-context/Dockerfile
+/opt/openclaw-context/docker-compose.yml
+
+# 启动与敏感信息脚本
+/usr/local/bin/openclaw-start.sh
+/usr/local/bin/openclaw-secrets.sh
+
+# 垃圾回收脚本（从 workspace maintenance 同步入镜像）
+/usr/local/bin/trash_gc.sh
+```
+
+快速验证：
+
+```bash
+docker exec -it openclaw-gateway ls -l /opt/openclaw-context
+docker exec -it openclaw-gateway ls -l /usr/local/bin/openclaw-*.sh /usr/local/bin/trash_gc.sh
+```
+
 ## 健康检查
 
 容器每 30 秒进行一次健康检查：
@@ -141,7 +165,7 @@ docker compose logs | grep -i error
 确保脚本有执行权限：
 
 ```bash
-docker exec -it openclaw-gateway ls -la /usr/local/bin/openclaw-*.sh
+docker exec -it openclaw-gateway ls -la /usr/local/bin/openclaw-*.sh /usr/local/bin/trash_gc.sh
 ```
 
 ## 项目结构
@@ -156,6 +180,8 @@ OpenClaw-Docker/
 ├── scripts/               # 镜像构建时复制的本地脚本
 │   ├── start.sh           # 启动脚本源文件（复制为 /usr/local/bin/openclaw-start.sh）
 │   └── secrets.sh         # 敏感信息脚本源文件（复制为 /usr/local/bin/openclaw-secrets.sh）
+├── data/openclaw/workspace/scripts/maintenance/
+│   └── trash_gc.sh        # 复制为 /usr/local/bin/trash_gc.sh
 └── （容器运行时）/root/.openclaw/scripts/  # 由 npm 包初始化，非仓库目录
     ├── config-platform.js     # 平台配置工具
     ├── verify-config.js       # 配置验证
