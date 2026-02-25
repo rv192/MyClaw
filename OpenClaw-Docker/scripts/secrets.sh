@@ -1,83 +1,181 @@
-#!/bin/bash
-# 敏感信息读写操作
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
+# OpenClaw secrets helper
+# Stable entrypoint (recommended): /usr/local/bin/openclaw-secrets.sh
+# Backing env file: /root/.secure/.env
 
-SECURE_DIR="/root/.secure"
-ENV_FILE="$SECURE_DIR/.env"
+ENV_FILE="/root/.secure/.env"
 
-validate_key() {
-    case "$1" in
-        [a-zA-Z_][a-zA-Z0-9_]*) return 0 ;;
-        *) return 1 ;;
-    esac
+usage() {
+  cat <<'EOF'
+Usage:
+  openclaw-secrets.sh read <KEY>
+  openclaw-secrets.sh write <KEY> <VALUE>
+  openclaw-secrets.sh delete <KEY>
+  openclaw-secrets.sh list
+
+Notes:
+- Backing file: /root/.secure/.env
+- list is masked; read prints the value only (no extra logs).
+- VALUE must be single-line. For multiline secrets, store base64.
+EOF
 }
 
-# 确保 .env 文件存在
-mkdir -p "$SECURE_DIR"
-chmod 700 "$SECURE_DIR"
-touch "$ENV_FILE"
-chmod 600 "$ENV_FILE"
+ensure_env_file() {
+  mkdir -p "$(dirname "$ENV_FILE")"
+  chmod 700 "$(dirname "$ENV_FILE")" || true
+  if [[ ! -f "$ENV_FILE" ]]; then
+    : > "$ENV_FILE"
+  fi
+  chmod 600 "$ENV_FILE" || true
+}
 
-# 解析命令行参数
-case "${1:-}" in
+validate_key() {
+  local k="$1"
+  if [[ ! "$k" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    echo "Invalid key: $k" >&2
+    exit 2
+  fi
+}
+
+strip_outer_quotes() {
+  # Best-effort: remove one layer of surrounding quotes.
+  local v="$1"
+  v="${v%\"}"; v="${v#\"}"
+  v="${v%\'}"; v="${v#\'}"
+  printf '%s' "$v"
+}
+
+read_key() {
+  local key="$1"
+  validate_key "$key"
+  ensure_env_file
+
+  # Take the last assignment to support overrides.
+  local val=""
+  val="$(
+    awk -v k="$key" 'BEGIN{FS="="} $1==k {v=substr($0, index($0,"=")+1)} END{if (v!="") print v}' "$ENV_FILE" || true
+  )"
+
+  if [[ -z "$val" ]]; then
+    exit 1
+  fi
+
+  strip_outer_quotes "$val"
+}
+
+needs_quotes() {
+  local v="$1"
+  # Quote if contains whitespace or '#'
+  if [[ "$v" =~ [[:space:]] ]] || [[ "$v" == *#* ]]; then
+    return 0
+  fi
+  return 1
+}
+
+write_key() {
+  local key="$1"
+  local value="$2"
+  validate_key "$key"
+  ensure_env_file
+
+  if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+    echo "VALUE must be single-line. Consider base64 for multiline." >&2
+    exit 2
+  fi
+
+  local out="$value"
+  if needs_quotes "$value"; then
+    # escape backslash and double-quote
+    out="${out//\\/\\\\}"
+    out="${out//\"/\\\"}"
+    out="\"$out\""
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+
+  # Remove any existing key assignments (keep everything else, including comments).
+  awk -v k="$key" 'BEGIN{FS="="} $1!=k {print $0}' "$ENV_FILE" > "$tmp"
+  printf '%s=%s\n' "$key" "$out" >> "$tmp"
+
+  cat "$tmp" > "$ENV_FILE"
+  rm -f "$tmp"
+  chmod 600 "$ENV_FILE" || true
+}
+
+delete_key() {
+  local key="$1"
+  validate_key "$key"
+  ensure_env_file
+
+  local tmp
+  tmp="$(mktemp)"
+  awk -v k="$key" 'BEGIN{FS="="} $1!=k {print $0}' "$ENV_FILE" > "$tmp"
+  cat "$tmp" > "$ENV_FILE"
+  rm -f "$tmp"
+  chmod 600 "$ENV_FILE" || true
+}
+
+mask_value() {
+  local v="$1"
+  v="$(strip_outer_quotes "$v")"
+  local n=${#v}
+
+  if (( n == 0 )); then
+    printf '%s' ''
+  elif (( n <= 8 )); then
+    printf '%s' '****'
+  else
+    printf '%s' "${v:0:4}****${v: -4}"
+  fi
+}
+
+list_keys() {
+  ensure_env_file
+
+  # Print as KEY=masked (sorted by key). Skip blank lines / comments.
+  awk 'BEGIN{FS="="}
+    /^[[:space:]]*#/ {next}
+    /^[[:space:]]*$/ {next}
+    $0 ~ /=/ {k=$1; v=substr($0, index($0,"=")+1); print k"="v}
+  ' "$ENV_FILE" \
+  | sort \
+  | while IFS='=' read -r k v; do
+      if [[ "$k" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+        printf '%s=%s\n' "$k" "$(mask_value "$v")"
+      fi
+    done
+}
+
+main() {
+  local cmd="${1:-}"
+  case "$cmd" in
     read)
-        # 读取指定键的值
-        if [ -z "$2" ]; then
-            echo "错误: 需要指定键名"
-            exit 1
-        fi
-        if ! validate_key "$2"; then
-            echo "错误: 键名不合法（仅支持字母、数字、下划线，且不能以数字开头）"
-            exit 1
-        fi
-        awk -F'=' -v key="$2" '$1 == key { print substr($0, index($0, "=") + 1); exit }' "$ENV_FILE"
-        ;;
+      [[ $# -eq 2 ]] || { usage >&2; exit 2; }
+      read_key "$2"
+      ;;
     write)
-        # 写入键值对
-        if [ -z "$2" ] || [ -z "$3" ]; then
-            echo "错误: 需要指定键名和值"
-            exit 1
-        fi
-        if ! validate_key "$2"; then
-            echo "错误: 键名不合法（仅支持字母、数字、下划线，且不能以数字开头）"
-            exit 1
-        fi
-
-        TMP_FILE=$(mktemp)
-        awk -F'=' -v key="$2" -v value="$3" '
-            BEGIN { updated = 0 }
-            $1 == key {
-                print key "=" value
-                updated = 1
-                next
-            }
-            { print }
-            END {
-                if (!updated) {
-                    print key "=" value
-                }
-            }
-        ' "$ENV_FILE" > "$TMP_FILE"
-        mv "$TMP_FILE" "$ENV_FILE"
-        chmod 600 "$ENV_FILE"
-        ;;
+      [[ $# -eq 3 ]] || { usage >&2; exit 2; }
+      write_key "$2" "$3"
+      ;;
+    delete)
+      [[ $# -eq 2 ]] || { usage >&2; exit 2; }
+      delete_key "$2"
+      ;;
     list)
-        # 列出所有键值对（脱敏显示）
-        while IFS='=' read -r key value; do
-            if [ -n "$key" ] && [ "${key:0:1}" != "#" ]; then
-                masked="${value:0:4}..."
-                echo "  $key: $masked"
-            fi
-        done < "$ENV_FILE"
-        ;;
+      [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+      list_keys
+      ;;
+    -h|--help|help|'')
+      usage
+      ;;
     *)
-        echo "用法: $0 {read|write|list}"
-        echo ""
-        echo "命令:"
-        echo "  read <key>   - 读取指定键的值"
-        echo "  write <key> <value> - 写入键值对"
-        echo "  list         - 列出所有键值对（脱敏显示）"
-        exit 1
-        ;;
-esac
+      usage >&2
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"
