@@ -1,62 +1,95 @@
-FROM node:22
+# 基于 Node.js 官方镜像构建最新版 OpenClaw
+# 添加中国 IM 平台插件、Tailscale、Playwright + Camoufox
 
-ENV BUN_INSTALL=/root/.bun
-ENV PATH=${BUN_INSTALL}/bin:${PATH}
+FROM node:22-bookworm
 
-# 安装必要工具
-RUN apt-get update && apt-get install -y \
-    sudo \
-    curl \
+# 设置环境变量
+ENV TZ=Asia/Shanghai
+ENV NODE_ENV=production
+
+# 安装基础依赖和 Tailscale
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
+    ca-certificates \
+    curl \
+    tzdata \
     python3 \
     python3-pip \
+    make \
+    g++ \
+    iptables \
+    iproute2 \
+    libgtk-3-0 \
+    libdbus-glib-1-2 \
+    libxt6 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libxshmfence1 \
+    libgbm1 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Tailscale
 RUN curl -fsSL https://tailscale.com/install.sh | sh
 
+# 设置时区
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# 安装最新版 OpenClaw (2026.2.23)
+RUN npm install -g openclaw@2026.2.23 && npm cache clean --force
+
+# 安装中国 IM 平台插件
+RUN npm install -g \
+    @openclaw-china/channels@latest \
+    && npm cache clean --force
+
+# 安装 Playwright（浏览器自动化框架）
+RUN npm install -g playwright@latest && npm cache clean --force
+
+# 安装 Puppeteer-extra + Stealth 插件（包含 stealth.min.js 反检测脚本）
+RUN npm install -g puppeteer-core puppeteer-extra puppeteer-extra-plugin-stealth && npm cache clean --force
+
+# 安装 Camoufox（Playwright 的轻量级浏览器后端，替代 Chromium）
+# Camoufox 基于 Firefox，提供更好的反检测能力和更小的体积
+RUN npm install -g camoufox-js@latest && npm cache clean --force
+
+# Camoufox 浏览器二进制文件将在运行时自动安装
+
+# 安装 Python 版本的 Playwright 和 Camoufox
+RUN pip3 install --no-cache-dir --break-system-packages playwright camoufox
+
+# 安装 Bun
 RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
 
-RUN ln -sf /root/.bun/bin/bun /usr/local/bin/bun
+# 安装 sing-box（代理工具）
+RUN curl -fsSL -o /usr/local/bin/sing-box.tar.gz "https://github.com/SagerNet/sing-box/releases/download/v1.11.4/sing-box-1.11.4-linux-amd64.tar.gz" \
+    && tar -xzf /usr/local/bin/sing-box.tar.gz -C /usr/local/bin --strip-components=1 \
+    && rm /usr/local/bin/sing-box.tar.gz \
+    && chmod +x /usr/local/bin/sing-box
 
-RUN bun install -g @tobilu/qmd
+# 安装 qmd（使用 npm 安装正确的包 @tobilu/qmd）
+RUN npm install -g @tobilu/qmd@latest && npm cache clean --force
 
-RUN ln -sf /root/.bun/bin/qmd /usr/local/bin/qmd
+# 创建必要的目录结构
+RUN mkdir -p /root/.openclaw/extensions \
+    /root/.openclaw/skills \
+    /root/.openclaw/workspace \
+    /root/.openclaw/data \
+    /opt/openclaw-context \
+    /var/lib/tailscale \
+    && chmod -R 755 /root/.openclaw
 
-# 创建安全目录结构
-RUN mkdir -p /root/.secure /scripts /credentials && \
-    mkdir -p /root/.openclaw/extensions /root/.openclaw/skills /root/.openclaw/data /root/.openclaw/models && \
-    mkdir -p /root/.openclaw/scripts && \
-    mkdir -p /root/.openclaw/workspace && \
-    mkdir -p /opt/openclaw-context && \
-    useradd -r -s /bin/false secure && \
-    chown -R root:root /root/.secure && \
-    chmod 700 /root/.secure /scripts /credentials && \
-    chmod 755 /root/.openclaw /root/.openclaw/extensions /root/.openclaw/skills /root/.openclaw/data /root/.openclaw/models /root/.openclaw/scripts /root/.openclaw/workspace /opt/openclaw-context
-
-# 预装 bird（加速 npm 全局包安装）
-RUN npm install -g @steipete/bird
-
-# 安装 OpenClaw 中文版
-RUN npm install -g @qingchencloud/openclaw-zh@latest
-
-COPY Dockerfile /opt/openclaw-context/Dockerfile
-COPY docker-compose.yml /opt/openclaw-context/docker-compose.yml
-COPY data/openclaw/workspace/scripts/maintenance/trash_gc.sh /usr/local/bin/trash_gc.sh
-
-# 复制运行时脚本到镜像（使用不会被挂载覆盖的路径）
-COPY scripts/secrets.sh /usr/local/bin/openclaw-secrets.sh
+# 复制配置文件和脚本
+COPY docker-compose.yml /opt/openclaw-context/
+COPY Dockerfile /opt/openclaw-context/
 COPY scripts/start.sh /usr/local/bin/openclaw-start.sh
-RUN chmod 750 /usr/local/bin/openclaw-secrets.sh /usr/local/bin/openclaw-start.sh /usr/local/bin/trash_gc.sh && \
-    echo "root ALL=(root) NOPASSWD: ALL" > /etc/sudoers.d/secure-access && \
-    chmod 440 /etc/sudoers.d/secure-access
-
-# 创建审计日志目录
-RUN mkdir -p /var/log && touch /var/log/openclaw-audit.log && \
-    chmod 640 /var/log/openclaw-audit.log
+RUN chmod +x /usr/local/bin/openclaw-start.sh
 
 # 暴露端口
 EXPOSE 18789 18790
 
-# 启动脚本
-CMD ["bash", "/usr/local/bin/openclaw-start.sh"]
+# 启动命令
+CMD ["/usr/local/bin/openclaw-start.sh"]
